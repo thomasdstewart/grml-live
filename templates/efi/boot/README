@@ -1,0 +1,7 @@
+# linux foundation approach:
+bootx64.efi        = http://blog.hansenpartnership.com/wp-uploads/2013/PreLoader.efi
+loader.efi         = http://github.com/schierlm/grml-plus-uefi-tools/releases/download/v0.2/skipsign.efi
+hashtool.efi       = http://blog.hansenpartnership.com/wp-uploads/2013/HashTool.efi
+# ubuntu approach:
+shim.efi.signed    = /usr/lib/shim/shim.efi.signed                      from http://de.archive.ubuntu.com/ubuntu/pool/main/s/shim-signed/shim-signed_1.21.3+0.9+1465500757.14a5905.is.0.8-0ubuntu3_amd64.deb
+grubx64.efi.signed = /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed from http://de.archive.ubuntu.com/ubuntu/pool/main/g/grub2-signed/grub-efi-amd64-signed_1.74+2.02~beta2-36ubuntu11_amd64.deb

@@ -394,6 +394,7 @@ fi
 [ -n "$HOSTNAME" ]                || HOSTNAME='grml'
 [ -n "$HYBRID_METHOD" ]           || HYBRID_METHOD='isohybrid'
 [ -n "$RELEASENAME" ]             || RELEASENAME='grml-live rocks'
+[ -n "$SECURE_BOOT" ]             || SECURE_BOOT='ubuntu'
 [ -n "$SQUASHFS_EXCLUDES_FILE" ]  || SQUASHFS_EXCLUDES_FILE="${GRML_FAI_CONFIG}/config/grml/squashfs-excludes"
 [ -n "$SUITE" ]                   || SUITE='testing'
 [ -n "$TEMPLATE_DIRECTORY" ]      || TEMPLATE_DIRECTORY='/usr/share/grml-live/templates'
@@ -850,6 +851,56 @@ EOF
 fi
 # }}}
 
+# secure boot {{{
+secureboot_support() {
+  if [ "${SECURE_BOOT:-}" = "disable" ] ; then
+    einfo "Secure Boot support disabled via SECURE_BOOT=disable"
+    log   "Secure Boot support disabled via SECURE_BOOT=disable"
+    eend 0
+    return 0
+  fi
+
+  einfo "Enabling Secure Boot support [${SECURE_BOOT}]"
+  log   "Enabling Secure Boot support [${SECURE_BOOT}]"
+
+  mkdir -p "${BUILD_OUTPUT}/efi/boot/"
+
+  if [ "${SECURE_BOOT}" = "linuxfoundation" ] ; then
+    # important: this depends on execution of ${GRML_FAI_CONFIG}/config/scripts/GRMLBASE/45-grub-images
+    if ! [ -r "${BUILD_OUTPUT}/efi/boot/bootx64.efi" ] ; then
+      eerror "File ${BUILD_OUTPUT}/efi/boot/bootx64.efi not found, required for Secure Boot support" >&2
+      eerror "Possible reason is failure to run ${GRML_FAI_CONFIG}/config/scripts/GRMLBASE/45-grub-images" >&2
+      bailout 15
+    fi
+
+    if ! [ -f "${BUILD_OUTPUT}/efi/boot/protector.efi" ] ; then
+      # 'protector.efi' is hardcoded in skipsign.c and expected to available as such
+      mv "${BUILD_OUTPUT}/efi/boot/bootx64.efi" "${BUILD_OUTPUT}/efi/boot/protector.efi"
+      log "Installed /efi/boot/bootx64.efi as /efi/boot/protector.efi"
+    fi
+
+    cp "${TEMPLATE_DIRECTORY}/efi/boot/PreLoader.efi" "${BUILD_OUTPUT}/efi/boot/bootx64.efi"
+    log "Installed /efi/boot/bootx64.efi"
+
+    cp "${TEMPLATE_DIRECTORY}/efi/boot/skipsign.efi" "${BUILD_OUTPUT}/efi/boot/loader.efi"
+    log "Installed /efi/boot/loader.efi"
+
+    cp "${TEMPLATE_DIRECTORY}/efi/boot/HashTool.efi" "${BUILD_OUTPUT}/efi/boot/hashtool.efi"
+    log "Installed /efi/boot/hashtool.efi"
+
+  elif [ "${SECURE_BOOT}" = "ubuntu" ] ; then
+    cp "${TEMPLATE_DIRECTORY}/efi/boot/shim.efi.signed" "${BUILD_OUTPUT}/efi/boot/bootx64.efi"
+    log "Installed /efi/boot/bootx64.efi"
+
+    cp "${TEMPLATE_DIRECTORY}/efi/boot/grubx64.efi.signed" "${BUILD_OUTPUT}/efi/boot/grubx64.efi"
+    log "Installed /efi/boot/grubx64.efi"
+  fi
+
+  einfo "Generated Secure Boot enabled images [${SECURE_BOOT}]"
+  log   "Generated Secure Boot enabled images [${SECURE_BOOT}]"
+}
+# }}}
+
 # BUILD_OUTPUT - execute arch specific stuff and squashfs {{{
 [ -n "$BUILD_OUTPUT" ] || BUILD_OUTPUT="$OUTPUT/grml_cd"
 mkdir -p "$BUILD_OUTPUT" || bailout 6 "Problem with creating $BUILD_OUTPUT for stage ARCH"
@@ -889,7 +940,7 @@ if [ "$ARCH" = i386 ] || [ "$ARCH" = amd64 ] ; then
           bailout 11
        fi
 
-       # EFI boot files
+       # EFI boot files - TODO - investigate what we should do here WRT secure boot
        if [ -r "${CHROOT_OUTPUT}/boot/efi.img" -a -r "${CHROOT_OUTPUT}/boot/bootx64.efi" ] ; then
           einfo "Moving EFI boot files into ISO path."
           log "Moving EFI boot files into ISO path."
@@ -925,6 +976,8 @@ if [ "$ARCH" = i386 ] || [ "$ARCH" = amd64 ] ; then
 
        mkdir -p "${BUILD_OUTPUT}/boot/grub"
        cp -a ${TEMPLATE_DIRECTORY}/boot/grub/* "$BUILD_OUTPUT"/boot/grub/
+
+       secureboot_support
 
        if [ -n "$NO_ADDONS" ] ; then
           rm -f "$BUILD_OUTPUT"/boot/grub/addons.cfg

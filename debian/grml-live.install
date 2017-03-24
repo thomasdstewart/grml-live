@@ -9,4 +9,5 @@ scripts                     usr/share/grml-live/
 templates/GRML              usr/share/grml-live/templates/
 templates/boot/grub         usr/share/grml-live/templates/boot/
 templates/boot/isolinux     usr/share/grml-live/templates/boot/
+templates/efi               usr/share/grml-live/templates/
 templates/windows           usr/share/grml-live/templates/

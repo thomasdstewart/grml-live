@@ -67,14 +67,56 @@ if ifclass AMD64 ; then
     exit 1
   fi
 
-  SIZE=$(du --apparent-size -sk "${target}/${BOOTX64}" | awk -F" " '{print $1}')
-  SIZE=$(((($SIZE / 32 )+2)*32))
-
-  dd if=/dev/zero of="${target}/${EFI_IMG}" bs=1k count="$SIZE" 2>/dev/null
+  dd if=/dev/zero of="${target}/${EFI_IMG}" bs=4M count=1 2>/dev/null
   $ROOTCMD mkfs.vfat -n GRML "$EFI_IMG" >/dev/null
   $ROOTCMD mmd -i "$EFI_IMG" ::EFI
   $ROOTCMD mmd -i "$EFI_IMG" ::EFI/BOOT
-  $ROOTCMD mcopy -i "$EFI_IMG" "$BOOTX64" ::EFI/BOOT/bootx64.efi >/dev/null
+
+  # TODO - we have to us this iff not using secure boot:
+  # install "$BOOTX64" as ::EFI/BOOT/bootx64.efi inside image file "$EFI_IMG":
+  # $ROOTCMD mcopy -i "$EFI_IMG" "$BOOTX64" ::EFI/BOOT/bootx64.efi >/dev/null
+
+  # FIXME - live-media-path + bootid are hardcoded, this needs to be replaced with live-media-path=/live/%GRML_NAME%/ and bootid=%BOOTID%
+  # FIXME - which boot entries do we want to provide?
+  # IDEA - move all of this to a separate script/step inside grml-live and make
+  # it customizable
+  GRUBCFG=$($ROOTCMD mktemp)
+  cat >"${target}/${GRUBCFG}" << EOF
+if loadfont /boot/grub/font.pf2 ; then
+        set gfxmode=auto
+        insmod efi_gop
+        insmod efi_uga
+        insmod gfxterm
+        terminal_output gfxterm
+fi
+
+set menu_color_normal=white/black
+set menu_color_highlight=black/light-gray
+
+# set prefix=(hd0)
+set root=(hd0)
+
+menuentry "Boot Grml in normal mode" {
+        set gfxpayload=keep
+        linux   /boot/grml/vmlinuz apm=power-off boot=live live-media-path=/live/grml/ bootid=grml001 "\${loopback}" "\${kernelopts}" nomce net.ifnames=0 ---
+        initrd  /boot/grml/initrd.img
+}
+EOF
+  $ROOTCMD mmd -i "$EFI_IMG" ::EFI/ubuntu
+  $ROOTCMD mcopy -i "$EFI_IMG" "${GRUBCFG}" ::EFI/ubuntu/grub.cfg
+
+  # TODO - this is ubuntu-mode only, we also want to support linuxfoundation approach
+  # FIXME - use mtools on/from host instead?
+  # FIXME - how do we handle TEMPLATE_DIRECTORY?
+  cp /usr/share/grml-live/templates/efi/boot/grubx64.efi.signed $target/tmp/
+  $ROOTCMD mcopy -i "$EFI_IMG" "/tmp/grubx64.efi.signed" ::EFI/BOOT/grubx64.efi >/dev/null
+  rm $target/tmp/grubx64.efi.signed
+
+  cp /usr/share/grml-live/templates/efi/boot/shim.efi.signed $target/tmp/
+  $ROOTCMD mcopy -i "$EFI_IMG" "/tmp/shim.efi.signed" ::EFI/BOOT/bootx64.efi >/dev/null
+  rm $target/tmp/shim.efi.signed
+
+  # FIXME
   echo "Generated EFI image $BOOTX64"
   echo "Generated bootx64 image $EFI_IMG"
 fi
